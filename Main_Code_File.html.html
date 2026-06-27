@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GOD's Weather Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Segoe UI', system-ui, sans-serif; }
+        .glass { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); }
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 10px; }
+        .btn-selected { ring: 2px solid white; transform: scale(1.05); }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 min-h-screen text-white flex items-center justify-center p-4">
+
+    <div class="w-full max-w-2xl glass rounded-3xl shadow-2xl p-8 border border-white/20">
+        <h1 class="text-4xl font-bold text-center mb-2">🌦️ GOD's Weather Game</h1>
+        <p class="text-center text-gray-300 mb-8">Can you guess the temperature?</p>
+
+        <!-- START SCREEN -->
+        <div id="start-screen" class="text-center space-y-6">
+            <!-- Unit Selection -->
+            <div>
+                <h3 class="text-lg mb-2 font-semibold">Choose Unit:</h3>
+                <div class="flex justify-center gap-4">
+                    <button onclick="selectUnit('C')" id="btn-C" class="bg-blue-500 hover:bg-blue-600 px-6 py-2 rounded-lg font-bold transition transform">° Celsius</button>
+                    <button onclick="selectUnit('F')" id="btn-F" class="bg-gray-600 hover:bg-gray-700 px-6 py-2 rounded-lg font-bold transition transform">° Fahrenheit</button>
+                </div>
+            </div>
+
+            <!-- Mode Selection -->
+            <div>
+                <h3 class="text-lg mb-2 font-semibold">Choose Mode:</h3>
+                <div class="flex justify-center gap-4">
+                    <button onclick="selectMode('1P')" id="btn-1P" class="bg-purple-500 hover:bg-purple-600 px-6 py-2 rounded-lg font-bold transition transform">1 Player (vs CPU)</button>
+                    <button onclick="selectMode('2P')" id="btn-2P" class="bg-gray-600 hover:bg-gray-700 px-6 py-2 rounded-lg font-bold transition transform">2 Players</button>
+                </div>
+            </div>
+
+            <button onclick="startGame()" class="bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-3 px-8 rounded-full text-xl transition transform hover:scale-105 shadow-lg mt-4">
+                Let GOD Decide the Weather ⚡
+            </button>
+        </div>
+
+        <!-- GAME SCREEN -->
+        <div id="game-screen" class="hidden">
+            <div class="bg-black/30 p-4 rounded-xl mb-6 border border-white/10">
+                <h2 class="text-lg font-semibold mb-2 text-yellow-300">📜 The Oracle's Clues:</h2>
+                <ul id="clues-list" class="space-y-1 text-gray-200"></ul>
+            </div>
+
+            <div id="turn-indicator" class="text-center text-2xl font-bold mb-4 p-3 rounded-lg bg-blue-500/20 border border-blue-400/30 transition-all">
+                Player 1's Turn 🎯
+            </div>
+
+            <div class="flex gap-3 mb-6">
+                <input type="number" step="1" id="guess-input" placeholder="Enter temperature" 
+                    class="flex-grow bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-yellow-400 text-lg">
+                <button onclick="submitGuess()" id="guess-btn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-xl transition shadow-lg">
+                    Guess
+                </button>
+            </div>
+
+            <div id="feedback-area" class="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scroll"></div>
+        </div>
+
+        <!-- WIN SCREEN -->
+        <div id="win-screen" class="hidden text-center py-8">
+            <h2 id="winner-text" class="text-3xl font-bold text-yellow-400 mb-4"></h2>
+            <button onclick="resetGame()" class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 px-8 rounded-full text-xl transition transform hover:scale-105">
+                Play Again 🔄
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // --- GAME STATE ---
+        let unit = 'C';
+        let mode = '2P';
+        let secretTemp;
+        let currentTurn = 1;
+        
+        // CPU Memory
+        let cpuLow, cpuHigh;
+
+        // --- UI SELECTION FUNCTIONS ---
+        function selectUnit(u) {
+            unit = u;
+            document.getElementById('btn-C').className = u === 'C' ? 'bg-blue-500 px-6 py-2 rounded-lg font-bold ring-2 ring-white scale-105' : 'bg-gray-600 hover:bg-gray-700 px-6 py-2 rounded-lg font-bold';
+            document.getElementById('btn-F').className = u === 'F' ? 'bg-blue-500 px-6 py-2 rounded-lg font-bold ring-2 ring-white scale-105' : 'bg-gray-600 hover:bg-gray-700 px-6 py-2 rounded-lg font-bold';
+        }
+
+        function selectMode(m) {
+            mode = m;
+            document.getElementById('btn-1P').className = m === '1P' ? 'bg-purple-500 px-6 py-2 rounded-lg font-bold ring-2 ring-white scale-105' : 'bg-gray-600 hover:bg-gray-700 px-6 py-2 rounded-lg font-bold';
+            document.getElementById('btn-2P').className = m === '2P' ? 'bg-purple-500 px-6 py-2 rounded-lg font-bold ring-2 ring-white scale-105' : 'bg-gray-600 hover:bg-gray-700 px-6 py-2 rounded-lg font-bold';
+        }
+
+        // --- CORE GAME FUNCTIONS ---
+        function startGame() {
+            // 1. GOD decides the temperature in Celsius first (-20 to 40)
+            let secretC = Math.floor(Math.random() * 61) - 20;
+            
+            // Convert to Fahrenheit if selected
+            secretTemp = unit === 'C' ? secretC : Math.round(secretC * 9/5 + 32);
+            
+            // 2. Generate Clues
+            const clues = getClues(secretTemp);
+            
+            // 3. Setup CPU bounds if 1P mode
+            if (mode === '1P') {
+                cpuLow = unit === 'C' ? -20 : -4;
+                cpuHigh = unit === 'C' ? 40 : 104;
+            }
+
+            // 4. Update UI
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('game-screen').classList.remove('hidden');
+            
+            const cluesList = document.getElementById('clues-list');
+            cluesList.innerHTML = '';
+            clues.forEach(clue => {
+                const li = document.createElement('li');
+                li.textContent = `• ${clue}`;
+                cluesList.appendChild(li);
+            });
+            
+            currentTurn = 1;
+            updateTurnIndicator();
+            document.getElementById('feedback-area').innerHTML = '';
+            document.getElementById('guess-input').focus();
+        }
+
+        function getClues(temp) {
+            let clues = [];
+            if (unit === 'C') {
+                if (temp < 0) clues.push("It's freezing! Temperature less than zero! ❄️");
+                else if (temp < 10) clues.push("It's pretty chilly. Less than 10 degrees. 🧥");
+                else clues.push("No need for a jacket. More than 10 degrees. 🌞");
+
+                if (temp >= 30) clues.push("It's hot enough to melt ice cream! More than 30 degrees heat. 🍦");
+                else if (temp >= 15) clues.push("It’s a nice day outside. 15–30 degrees. 🚶‍♀️");
+                else clues.push("You might want to stay warm. Less than 15 degrees. 🔥");
+            } else {
+                // F thresholds: 0C=32F, 10C=50F, 15C=59F, 30C=86F
+                if (temp < 32) clues.push("It's freezing! Temperature less than 32°F! ❄️");
+                else if (temp < 50) clues.push("It's pretty chilly. Less than 50°F. 🧥");
+                else clues.push("No need for a jacket. More than 50°F. 🌞");
+
+                if (temp >= 86) clues.push("It's hot enough to melt ice cream! More than 86°F heat. 🍦");
+                else if (temp >= 59) clues.push("It’s a nice day outside. 59–86°F. 🚶‍♀️");
+                else clues.push("You might want to stay warm. Less than 59°F. 🔥");
+            }
+
+            if (temp % 2 === 0) clues.push("The temperature is an even number. 🔢");
+            else clues.push("The temperature is an odd number. 🔢");
+            
+            return clues;
+        }
+
+        function submitGuess() {
+            const input = document.getElementById('guess-input');
+            const guessStr = input.value.trim();
+            
+            if (guessStr === "" || isNaN(guessStr) || !Number.isInteger(Number(guessStr))) {
+                alert("ENTER A WHOLE NUMBER, DUDE.");
+                return;
+            }
+            
+            processGuess(parseInt(guessStr), currentTurn);
+            input.value = '';
+        }
+
+        function processGuess(guess, player) {
+            let feedback = "";
+            let winner = null;
+            let winnerName = (mode === '1P' && player === 2) ? "CPU" : (mode === '1P' ? "You" : `Player ${player}`);
+
+            // Guessing Logic
+            if (guess === secretTemp) {
+                winner = winnerName;
+                feedback = `🏆 ${winnerName} win! The temperature was ${secretTemp}°${unit}. Good One!`;
+            } 
+            else if (Math.abs(guess - secretTemp) <= 2) {
+                feedback = "🔥 Ooh! Very close, just a few degrees off!";
+            } 
+            else {
+                // "Comfortable range" check (20-29C or 68-77F)
+                let rangeLow = unit === 'C' ? 20 : 68;
+                let rangeHigh = unit === 'C' ? 30 : 78;
+                
+                if ((guess >= rangeLow && guess < rangeHigh) && (secretTemp >= rangeLow && secretTemp < rangeHigh)) {
+                    feedback = "🌡️ Ooh! In the same comfortable range though.";
+                } 
+                else if (Math.floor(guess / 10) === Math.floor(secretTemp / 10)) {
+                    feedback = "😊 Ooh! Close. Guess in the same tens place.";
+                } 
+                else {
+                    feedback = "❌ Nope! Not even close.";
+                }
+            }
+
+            // Update CPU memory if 1P mode and it was the CPU's turn
+            if (mode === '1P' && player === 2 && !winner) {
+                updateCpuBounds(guess, feedback);
+            }
+
+            // Show Feedback in UI
+            const feedbackArea = document.getElementById('feedback-area');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = "p-3 rounded-lg bg-white/5 border border-white/10";
+            msgDiv.innerHTML = `<span class="font-bold ${player === 1 ? 'text-blue-300' : 'text-pink-300'}">${winnerName}:</span> ${guess}°${unit} ➔ ${feedback}`;
+            feedbackArea.prepend(msgDiv); 
+
+            if (winner) {
+                document.getElementById('game-screen').classList.add('hidden');
+                document.getElementById('win-screen').classList.remove('hidden');
+                document.getElementById('winner-text').textContent = feedback;
+            } else {
+                currentTurn = currentTurn === 1 ? 2 : 1;
+                updateTurnIndicator();
+                
+                // If it's CPU's turn in 1P mode, auto-guess
+                if (mode === '1P' && currentTurn === 2) {
+                    disableInput(true);
+                    setTimeout(() => {
+                        let cpuGuessVal = Math.floor(Math.random() * (cpuHigh - cpuLow + 1)) + cpuLow;
+                        processGuess(cpuGuessVal, 2);
+                    }, 1500); // 1.5s thinking delay
+                } else {
+                    disableInput(false);
+                    document.getElementById('guess-input').focus();
+                }
+            }
+        }
+
+        function updateCpuBounds(guess, feedbackText) {
+            if (feedbackText.includes("tens place")) {
+                let tens = Math.floor(guess / 10) * 10;
+                cpuLow = Math.max(cpuLow, tens);
+                cpuHigh = Math.min(cpuHigh, tens + 9);
+            } else if (feedbackText.includes("comfortable range")) {
+                let low = unit === 'C' ? 20 : 68;
+                let high = unit === 'C' ? 30 : 78;
+                cpuLow = Math.max(cpuLow, low);
+                cpuHigh = Math.min(cpuHigh, high - 1);
+            } else if (feedbackText.includes("Very close")) {
+                cpuLow = Math.max(cpuLow, guess - 2);
+                cpuHigh = Math.min(cpuHigh, guess + 2);
+            }
+            if (cpuLow > cpuHigh) { cpuLow = guess; cpuHigh = guess; }
+        }
+
+        function updateTurnIndicator() {
+            const indicator = document.getElementById('turn-indicator');
+            if (mode === '1P' && currentTurn === 2) {
+                indicator.textContent = "CPU is thinking... 🤖";
+                indicator.className = "text-center text-2xl font-bold mb-4 p-3 rounded-lg bg-gray-500/20 border border-gray-400/30 transition-all";
+            } else {
+                let text = mode === '1P' ? "Your Turn 🎯" : `Player ${currentTurn}'s Turn 🎯`;
+                indicator.textContent = text;
+                let colorClasses = currentTurn === 1 ? "bg-blue-500/20 border-blue-400/30" : "bg-pink-500/20 border-pink-400/30";
+                indicator.className = `text-center text-2xl font-bold mb-4 p-3 rounded-lg border transition-all ${colorClasses}`;
+            }
+        }
+
+        function disableInput(isDisabled) {
+            document.getElementById('guess-input').disabled = isDisabled;
+            document.getElementById('guess-btn').disabled = isDisabled;
+        }
+
+        function resetGame() {
+            document.getElementById('win-screen').classList.add('hidden');
+            document.getElementById('start-screen').classList.remove('hidden');
+        }
+        
+        document.getElementById('guess-input').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter' && !this.disabled) submitGuess();
+        });
+    </script>
+</body>
+</html>
